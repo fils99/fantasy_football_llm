@@ -9,7 +9,7 @@ Two main tabs:
 
 **Comparison**: pick two or more players and ask the AI who to start. It checks recent news and the upcoming fixture before giving a verdict.
 
-**Lineup**: define your full 25-man squad by role, then generate an optimal starting 11 with module choice. Optionally enables a "defense modifier" rule for leagues that award bonus points for clean sheets.
+**Lineup**: define your full 25-man squad by role, then generate an optimal starting 11 with module choice. Optionally enables a "defense modifier" rule for leagues that reward high-performing defenders and goalkeepers.
 
 ## Setup
 
@@ -19,9 +19,10 @@ You need a [Google Gemini API key](https://ai.google.dev/gemini-api/docs/api-key
 export Gemini_Google_API_Key="your-key-here"
 ```
 
-Install dependencies with whatever environment manager you prefer, then:
+After cloning the repo, install dependencies with whatever environment manager you prefer, then run the app:
 
 ```bash
+cd fantasy_football_llm/
 pip install -r requirements.txt
 streamlit run app.py
 ```
