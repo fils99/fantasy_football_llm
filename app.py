@@ -6,7 +6,7 @@ import datetime
 from google import genai
 from google.genai import types
 
-# --- CONFIGURAZIONE ---
+# --- CONFIGURATION ---
 API_KEY = os.getenv("Gemini_Google_API_Key")
 DEFAULT_DB_PATH = "data/Statistiche_Fantacalcio_Stagione_2025_26.xlsx"
 SQUAD_FILE = "my_fanta_squad.json"
@@ -18,7 +18,7 @@ GLOSSARIO STATISTICHE:
 - Gf: Gol Fatti | Ass: Assist | Amm: Ammonizioni | Esp: Espulsioni
 """
 
-# --- GESTIONE DATI E ROSA ---
+# ---  MANAGEMENT OF DATA ---
 @st.cache_data
 def load_player_data(source) -> pd.DataFrame:
     df = pd.read_excel(source, header=1)
@@ -26,15 +26,15 @@ def load_player_data(source) -> pd.DataFrame:
     return df
 
 def save_squad(squad_dict):
-    with open(SQUAD_FILE, "w") as f:
-        json.dump(squad_dict, f)
+    with open(SQUAD_FILE, "w", encoding="utf-8") as f:
+        json.dump(squad_dict, f, ensure_ascii=False, indent=4)
 
 def load_squad():
     if os.path.exists(SQUAD_FILE):
         try:
             with open(SQUAD_FILE, "r") as f:
                 return json.load(f)
-        except:
+        except (json.JSONDecodeError, OSError):
             return {"P": [], "D": [], "C": [], "A": []}
     return {"P": [], "D": [], "C": [], "A": []}
 
@@ -87,11 +87,11 @@ if df is not None:
     
     tab1, tab2 = st.tabs(["⚖️ Confronto Dubbi", "📋 Formazione Consigliata"])
 
-    # --- TAB 1: CONFRONTO SINGOLO ---
+    # --- TAB 1: SINGLE COMPARISON ---
     with tab1:
         st.subheader("Chi schiero tra questi?")
         
-        # Nuovo sistema di filtraggio per ruolo
+        # Filtering by role
         role_choice = st.radio(
             "Filtra per ruolo:", 
             ["Tutti", "P", "D", "C", "A"], 
@@ -99,7 +99,7 @@ if df is not None:
             key="role_filter_tab1"
         )
         
-        # Filtriamo le opzioni in base alla scelta
+        # Filtering the player options based on role selection
         if role_choice == "Tutti":
             available_options = sorted(df['Nome'].unique())
         else:
@@ -111,8 +111,6 @@ if df is not None:
         )
         
         if selected_players:
-            # Recuperiamo i dati completi (senza filtraggio di ruolo per sicurezza 
-            # nel caso avessi rimosso il filtro dopo la selezione)
             selected_data = df[df['Nome'].isin(selected_players)]
             cols = ['Nome', 'Squadra', 'R', 'Pv', 'Mv', 'Fm', 'Gf', 'Ass']
             st.dataframe(selected_data[cols], use_container_width=True)
@@ -124,7 +122,6 @@ if df is not None:
             
             if st.button("🔍 Analizza Dubbio", type="primary"):
                 with st.spinner("Analisi in corso..."):
-                    # Il prompt rimane identico, è già perfetto
                     prompt = f"""
                     Analista Fantacalcio: Confronta questi giocatori.
                     Data: {datetime.date.today()}. Cerca info ULTIME 72H (infortuni/probabili).
@@ -141,11 +138,11 @@ if df is not None:
                             for s in sources: 
                                 st.markdown(f"- [{s['title']}]({s['url']})")
 
-    # --- TAB 2: FORMAZIONE COMPLETA ---
+    # --- TAB 2: COMPLETE LINEUP ---
     with tab2:
         st.subheader("Gestione Rosa e Top 11")
         
-        # Caricamento rosa persistente
+        # Preexisting squad loading
         if 'my_squad' not in st.session_state:
             st.session_state.my_squad = load_squad()
 
@@ -159,42 +156,34 @@ if df is not None:
                 col = c1 if i < 2 else c2
                 current_sel = [n for n in st.session_state.my_squad.get(r, []) if n in df['Nome'].values]
                 new_squad[r] = col.multiselect(f"{r} (Max {limit})", options=sorted(df[df['R']==r]['Nome'].unique()), default=current_sel)
-            
-            def save_squad(squad_dict):
-                with open(SQUAD_FILE, "w", encoding="utf-8") as f:
-                    # indent=4 serve a rendere il file leggibile, 
-                    # ensure_ascii=False salva gli accenti correttamente
-                    json.dump(squad_dict, f, ensure_ascii=False, indent=4)
 
-        # Calcolo Formazione
+        # Lineup generation
         flat_list = [p for sub in st.session_state.my_squad.values() for p in sub]
         
         if len(flat_list) < 11:
             st.warning("Completa la rosa per generare la formazione (servono almeno 11 giocatori).")
         else:
             st.write(f"Giocatori in rosa: **{len(flat_list)}/25**")
-            # --- NUOVA FEATURE: MODIFICATORE ---
+            # Modifier
             col_mod, col_btn = st.columns([1, 2])
             with col_mod:
-                usa_modificatore = st.toggle("🛡️ Usa Modificatore Difesa", value=False, help="Se attivo, l'IA valuterà se conviene passare alla difesa a 4 per bonus extra.")
-            # Contesto extra
+                use_modifier = st.toggle("🛡️ Usa Modificatore Difesa", value=False, help="Se attivo, l'IA valuterà se conviene passare alla difesa a 4 per bonus extra.")
+            # Extra context for lineup generation
             extra_ctx = st.text_input(
                 "Contesto (es. vorrei un modulo offensivo):", 
-                key="ctx_1"
+                key="ctx_2"
             )
 
             if st.button("🪄 Genera Formazione Ottimale", type="primary"):
                 with st.spinner("L'IA sta scegliendo il modulo e i titolari..."):
                     squad_df = df[df['Nome'].isin(flat_list)]
-                    # Calcoliamo la data per dare un riferimento preciso
-                    oggi = datetime.date.today().strftime("%d %B %Y")
 
                     testo_modificatore = """
                     REGOLA MODIFICATORE DIFESA (ATTIVA):
                     - Se schieri ALMENO 4 difensori, ricevi un bonus basato sulla media voto (voto puro, NO bonus/malus) dei 3 migliori difensori + il portiere.
                     - Le fasce dei bonus sono specifiche da user a user, ma in generale più alta è la media voto dei tuoi difensori, più alto sarà il bonus.
                     COMPITO: Valuta se i miei difensori e portiere posssono ottenere una media voto alta abbastanza da giustificare il passaggio a una difesa a 4. Se sì, considera questa opzione nella formazione.
-                    """ if usa_modificatore else "MODIFICATORE DIFESA: Disattivato. Scegli il modulo più offensivo possibile."
+                    """ if use_modifier else "MODIFICATORE DIFESA: Disattivato. Scegli il modulo più offensivo possibile."
 
                     prompt = f"""
                     SISTEMA: Sei un DS di Fantacalcio preciso. 
